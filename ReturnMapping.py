@@ -60,30 +60,28 @@ class ReturnMapping:
 
         return sigma_next, ep_next, p_next, H_next
     
-    def plot_sigma_eps(self):
-        M = 1000 
-        vsigma = np.zeros(3*M)
+    def plot_sigma_eps(self, number_steps):
         eps_max = 0.02
 
         # Scénario de chargement du matériau
-        ve1 = np.linspace(0.0, eps_max, M)
-        ve2 = np.linspace(eps_max, -eps_max, M)
-        ve3 = np.linspace(-eps_max, 0.0, M)
-        ve = np.concatenate((ve1, ve2, ve3))
+        stretching               = np.linspace(0.0, eps_max, number_steps)
+        unstretching_compressing = np.linspace(eps_max, -eps_max, number_steps)
+        decompressing            = np.linspace(-eps_max, 0.0, number_steps)
+        eps_values               = np.concatenate((stretching, unstretching_compressing, decompressing))
 
-        vep = np.zeros(3*M)
-        vp = np.zeros(3*M)
-        vH = np.zeros(3*M)
+        stress_values            = np.zeros(3*number_steps)
+        eps_plat_values          = np.zeros(3*number_steps)
+        p_values                 = np.zeros(3*number_steps)
 
-        for i in range(1, 3*M):
-            delta_eps = ve[i]-ve[i-1]
-            vsigma[i], vep[i], vp[i], vH[i] = self.retourRadial(vsigma[i-1], delta_eps, vep[i-1], vp[i-1])
+        for i in range(1, 3*number_steps):
+            delta_eps = eps_values[i] - eps_values[i-1]
+            stress_values[i], eps_plat_values[i], p_values[i], _ = self.retourRadial(stress_values[i-1], delta_eps, eps_plat_values[i-1], p_values[i-1])
         it=0 
 
         fig, axes = plt.subplots(1, 3, figsize=(25, 5))
         fig.suptitle("Isotropic hardening")
         ax = axes[0]
-        ax.plot(ve, vsigma) 
+        ax.plot(eps_values, stress_values) 
         ax.set_xlabel("Strain")
         ax.set_ylabel("Stress (Pa)")
         ax.set_title(f"sigma-eps")
@@ -91,14 +89,14 @@ class ReturnMapping:
 
 
         ax = axes[1]
-        ax.plot(vep, vsigma) 
+        ax.plot(eps_plat_values, stress_values) 
         ax.set_xlabel("Plastic strain")
         ax.set_ylabel("Stress (Pa)")
         ax.set_title(f"Plastic strain evolution")
         ax.grid(True)
 
         ax = axes[2]
-        ax.plot(vp, vsigma) 
+        ax.plot(p_values, stress_values) 
         ax.set_xlabel("Cumulated plasticity")
         ax.set_ylabel("Stress (Pa)")
         ax.set_title(f"p evolution")
