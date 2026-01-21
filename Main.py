@@ -10,7 +10,7 @@ if __name__ == '__main__':
     S = 50 * 20 * 1e-6
     L = 0.2
     rho = 4430.0
-    rot_max = 39000.0 / 1.2
+    rot_max = 39000.0
     B = 7.7e8
     m = 0.557
     sigma_y = 9.55e8
@@ -18,7 +18,7 @@ if __name__ == '__main__':
     newt_iter_max = 1000
     newt_tolerence = 1e-3
     Nelem = 10
-    loading_steps = 50
+    loading_steps = 20
 
     # Déinition de la pâle et du maillage
     pale = Pale(E, S, L, rho, rot_max, B, m, sigma_y)
@@ -30,8 +30,8 @@ if __name__ == '__main__':
 
     # Solver (étape globale)
     try:
-        solution = PaleSolver(0, loading_steps, newt_iter_max, newt_tolerence, pale, mesh, rr)
+        solution = PaleSolver(1, loading_steps, newt_iter_max, newt_tolerence, pale, mesh, rr)
         solution.loadingLoop()
-        solution.plot_results()
+        solution.plot_results(loading_steps-1)
     except Exception as e:
         print(f"Exception: {e}")

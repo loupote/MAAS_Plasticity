@@ -44,16 +44,19 @@ class PaleSolver():
     def loadingLoop(self):
         # Boucle de chargement
         for t in range(1, self.loading_steps):
-            # Prédiction élastique (sigma = E*eps en 1D)
+            # Candidat élastique (sigma = E*eps en 1D)
             Kelas = self.pale.E*self.pale.S*mat.Matrix1D(self.mesh.D, 1, 1, [], [])
 
             # Forces extérieures f_ext = integral de {N0(x), N1(x)}^T * f_L(x) dx
             self.fext[t, :] = vec.Linear_form(self.mesh.D, 0, self.ext_forces(self.mesh.D, self.loading[t]), [])
             
             # Calcul de u et eps
-            u0              = np.linalg.solve(Kelas[1:, 1:], self.fext[t, 1:] - Kelas[0, 0]*self.u[t, 0])
-            u0_test         = np.append(0, u0)
-            self.eps[t, :]  = (u0_test[1:] - u0_test[:-1])/self.mesh.Le
+            #u0              = np.linalg.solve(Kelas[1:, 1:], self.fext[t, 1:] - Kelas[0, 0]*self.u[t, 0])
+            #u0_test         = np.append(0, u0)
+            delta_u         = np.linalg.solve(Kelas[1:, 1:], self.fext[t, 1:] - self.fint[t-1, 1:])
+            u0              = self.u[t-1, 1:] + delta_u
+            u_candidat      = np.append(0, u0)
+            self.eps[t, :]  = (u_candidat[1:] - u_candidat[:-1])/self.mesh.Le
             delta_eps       = self.eps[t, :] - self.eps[t-1, :]
             
         
@@ -85,10 +88,10 @@ class PaleSolver():
                 K=Kelas
                 '''
                 
-                delta_u = np.linalg.solve(K[1:, 1:], self.res[t, 1:])
-                u0 += delta_u
-                u0_test        = np.append(0, u0)
-                self.eps[t, :] = (u0_test[1:] - u0_test[:-1])/self.mesh.Le
+                delta_u        = np.linalg.solve(K[1:, 1:], self.res[t, 1:])
+                u0            += delta_u
+                u_candidat     = np.append(0, u0)
+                self.eps[t, :] = (u_candidat[1:] - u_candidat[:-1])/self.mesh.Le
                 delta_eps      = self.eps[t, :] - self.eps[t-1, :]
                
                 # Intégration de la loi de comportement sur les éléments par Retour Radial (Return Mapping)
@@ -107,40 +110,42 @@ class PaleSolver():
 
             print('Pas de chargement: ', t, ' | Itération: ', it, ' | Résidu', self.res_norm[t])
                
-            self.u[t, :] = u0_test # u0_test est la solution trouvée dans le chargement en cours
+            self.u[t, :] = u_candidat # u_candidat est la solution trouvée dans le chargement en cours
 
 
     # Solutions analytiques élastiques
-    def SigmaAnalytique(self, r):
-        sigma = self.pale.rho*self.pale.omega_max**2/2*(self.pale.L**2-r**2)
+    def SigmaAnalytique(self, r, omega):
+        sigma = self.pale.rho * omega**2/2 * (self.pale.L**2-r**2)
         return sigma
 
-    def UAnalytique(self, r):
-        u = self.pale.rho * r * self.pale.omega_max**2/(2*self.pale.E) * (self.pale.L**2 - r**2/3)
+    def UAnalytique(self, r, omega):
+        u = self.pale.rho * r * omega**2 / (2*self.pale.E) * (self.pale.L**2 - r**2/3)
         return u
 
 
-    def plot_results(self):
+    def plot_results(self, loading_idx):
+        if loading_idx >= self.loading_steps:
+            raise Exception(f"Loading index to plot should be less or equal to {self.loading_steps-1} (it is {loading_idx}).")
         x = np.linspace(0, self.pale.L, 150)
 
-        fig, axes = plt.subplots(1, 3, figsize=(25, 5))
+        fig, axes = plt.subplots(1, 3, figsize=(30, 5))
         ax = axes[0]
-        ax.plot(x, self.SigmaAnalytique(x), label='Solution Analytique')
-        ax.step(self.mesh.D[:-1], self.sigma[-1, :], where='post', c='r', label='Solution EF')
+        ax.plot(x, self.SigmaAnalytique(x, self.loading[loading_idx]), label='Solution Analytique')
+        ax.step(self.mesh.D[:-1], self.sigma[loading_idx, :], where='post', c='r', label='Solution EF')
         ax.legend()
-        ax.set_xlabel('x (m)')
+        ax.set_xlabel('Radius (m)')
         ax.set_ylabel('Sigma (Pa)')
-        ax.set_title('Contraintes le long de la pâle')
+        ax.set_title(f'Contraintes le long de la pâle \n(chargement n°{loading_idx})')
         ax.grid(True)
 
 
         ax = axes[1]
-        ax.plot(x, self.UAnalytique(x), label='Solution Analytique') 
-        ax.plot(self.mesh.D, self.u[-1, :], '-x', c='r', label='Solution EF')
+        ax.plot(x, self.UAnalytique(x, self.loading[loading_idx]), label='Solution Analytique') 
+        ax.plot(self.mesh.D, self.u[loading_idx, :], '-x', c='r', label='Solution EF')
         ax.legend()
-        ax.set_xlabel('x (m)')
+        ax.set_xlabel('Radius (m)')
         ax.set_ylabel('U (m)')
-        ax.set_title('Déplacements le long de la pâle')
+        ax.set_title(f'Déplacements le long de la pâle \n(chargement n°{loading_idx})')
         ax.grid(True)
 
         ax = axes[2]
@@ -154,8 +159,8 @@ class PaleSolver():
 
         plt.plot(self.u[:, -1], self.fext[:, -1], 'x', linestyle='--', label='fext')
         plt.plot(self.u[:, -1], self.fint[:, -1], c='r', label='fint')
-        plt.xlabel('Forces (N)')
-        plt.ylabel('U (m)')
+        plt.xlabel('U (m)')
+        plt.ylabel('Forces (N)')
         plt.legend()
         plt.grid(True)
         plt.show()
